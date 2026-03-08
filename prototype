@@ -1,0 +1,17 @@
+security-agent/
+├── .wslconfig / .vmconfig   # 环境配置文件（展示你对资源分配的优化）
+├── docs/                    # 文档：包含架构图、Prompt 设计逻辑
+├── src/                     # 源代码
+│   ├── main.go              # 程序入口：负责任务分发与循环控制
+│   ├── llm/                 # 核心大脑：封装对 Windows Ollama 的 API 调用
+│   │   └── client.go
+│   ├── tools/               # 工具集（Agent 的手）：封装 Nmap/Sqlmap 等
+│   │   ├── nmap_wrapper.go
+│   │   └── dir_brute.go
+│   └── prompt/              # 提示词库：管理 System Prompt 和 Few-shot 案例
+│       └── security_expert.txt
+├── logs/                    # 运行日志（面试演示重点：展示 Agent 的思考过程）
+│   ├── thought_trace.log    # LLM 的原始 Reasoning
+│   └── action_trace.log     # 工具执行的原始输出
+├── go.mod / requirements.txt # 依赖管理
+└── README.md                # 项目说明：重点写“安全隔离设计”和“模型调优”
