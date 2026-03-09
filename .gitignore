@@ -1,1 +1,29 @@
-docs/prototype
+# 0. 开发用笔记
+docs/prototype.txt
+
+# 1. 敏感信息：严禁提交 API 密钥
+.env
+config/*.json  # 如果你在 JSON 里存了 key
+
+# 2. Python 环境：无需提交，他人通过 requirements.txt 重建
+.venv/
+venv/
+ENV/
+build/
+dist/
+*.pyc
+__pycache__/
+
+# 3. 数据与缓存：避免提交庞大的本地向量库
+data/db/
+.chroma/
+
+# 4. 操作系统与编辑器
+.DS_Store
+.vscode/
+.idea/
+
+# 5. 扫描结果：避免提交带有具体 IP 的扫描报告
+reports/*.pdf
+reports/*.md
+logs/*.log
