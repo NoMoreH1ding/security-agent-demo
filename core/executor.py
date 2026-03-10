@@ -1,7 +1,10 @@
 import subprocess
 import shlex
 from schema.model import CommandAction
-#from utils.logger import logger  # 假设你已经配置了 loguru
+from datetime import datetime, timedelta
+from threading import Timer
+import sys
+from loguru import logger
 
 class CommandExecutor:
     def __init__(self):
@@ -13,11 +16,9 @@ class CommandExecutor:
         
         # 1. 安全预检查
         if action.command in self.blacklist:
-            #logger.warning(f"检测到黑名单命令: {action.command}")
             return f"Error: 命令 '{action.command}' 被安全策略拦截。"
 
         if not action.is_safe:
-            #logger.warning(f"AI 标记该命令具备潜在风险: {action.command}")
             pass
             # 这里可以加入人工确认逻辑（Human-in-the-loop）
 
@@ -26,31 +27,43 @@ class CommandExecutor:
         full_command = [action.command] + action.args
         
         try:
-            #logger.info(f"正在执行命令: {' '.join(full_command)}")
-            
             # 3. 调用系统进程
             # 设置 timeout 防止扫描工具挂死导致程序崩溃
-            result = subprocess.run(
+            process = subprocess.Popen(
                 full_command,
-                capture_output=True,
-                text=True,
-                timeout=30  # 基础命令设置 30s 超时，nmap 建议更长
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
             )
 
-            # 4. 组合输出
-            if result.returncode == 0:
-                #logger.success(f"命令执行成功: {action.command}")
-                return result.stdout
-            else:
-                #logger.error(f"命令执行报错: {result.stderr}")
-                return f"Execution Error (Code {result.returncode}): {result.stderr}"
+            def timeout_handler():
+                process.terminate()
+                logger.error("执行超时。")
+                return "Error: 执行超时。"
 
-        except subprocess.TimeoutExpired:
-            #logger.error("命令执行超时")
-            return "Error: 执行超时。"
-        except FileNotFoundError:
-            #logger.error(f"找不到工具: {action.command}")
-            return f"Error: 系统中未找到工具 '{action.command}'。"
+            timer = Timer(300, timeout_handler)  # 基础命令设置 30s 超时，nmap 建议更长
+            timer.start()
+
+            # 4. 组合输出
+            output = ""
+            for line in iter(process.stdout.readline, ''):
+                output += line
+                sys.stdout.write(line)
+                sys.stdout.flush()
+                timer.cancel()  # 重置超时计时器
+                timer = Timer(300, timeout_handler)
+                timer.start()
+
+            if process.poll() is None:
+                process.terminate()
+
+            timer.cancel()
+
+            if process.returncode == 0:
+                return output
+            else:
+                logger.error(f"Execution Error (Code {process.returncode})")
+                return f"{output}"
+
         except Exception as e:
-            #logger.exception("发生未知执行错误")
             return f"Unexpected Error: {str(e)}"

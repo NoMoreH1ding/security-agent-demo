@@ -2,6 +2,7 @@ import json
 from openai import OpenAI
 from schema.model import CommandAction
 from utils.config import Config
+from loguru import logger
 
 SYSTEM_PROMPT = """
 你是一名专业的自动化渗透测试助手（AI-PTA）。
@@ -39,6 +40,8 @@ class PentestBrain:
         )
         
         raw_content = response.choices[0].message.content.strip()
+        # logger.info(f"Ai 返回内容: {raw_content}")
+        
         
         # 核心：使用 Pydantic 的 parse_raw 确保 AI 没在胡说八道
         try:
