@@ -1,7 +1,8 @@
 from core.brain import PentestBrain
 from core.executor import CommandExecutor
 from utils.config import Config
-from utils.logger import SimpleLogger  # 导入你存放好的 logger
+from utils.logger import SimpleLogger 
+from utils.parser import NmapXMLParser
 from loguru import logger
 
 def main():
@@ -21,7 +22,7 @@ def main():
         return
 
     # 3. 模拟渗透意图
-    user_query = "快速扫描一下192.168.43.1的端口开放情况并简单探测其开放端口的服务版本，输出阅读友好的内容，你自行决定命令行优化方式"
+    user_query = "利用nmap -sS -sV -O -Pn -n --top-ports 100 -oX - 的参数扫描192.168.43.1"
     logger.info(f"收到用户指令: {user_query}")
     
     # 第一步：思考 (Brain)
@@ -36,9 +37,10 @@ def main():
         logger.warning(f"拟执行命令: {action.command} {' '.join(action.args)}")
         
         # 第二步：执行确认 (人机交互)
-        confirm = input("\n[⚠️ 确认] 是否确认执行该命令? (y/n): ")
-        if confirm.lower() == 'y':
-            logger.info("用户确认执行，启动流式执行器...")
+        #confirm = input("\n[⚠️ 确认] 是否确认执行该命令? (y/n): ")
+        #if confirm.lower() == 'y':
+        if 1:
+            logger.info("用户确认执行，启动流式执行器...")nu
             
             # 在执行器内部，你之前已经添加了 logger.info(line)
             # 这里的 output 会包含所有流式输出的汇总
@@ -51,6 +53,10 @@ def main():
             # 第三步：反馈 (目前为演示逻辑，打印结果)
             # 以后可以将这里的 output 传给 agent_logger.log_ai_trace 记录分析过程
             print(f"\n[📡 执行结果如下]:\n{output}...") 
+            output_json = NmapXMLParser.parse_from_string(output)
+            nmap_md = NmapXMLParser.to_markdown(output_json)
+            report = brain.analyze(nmap_md)
+            agent_logger.log_ai_trace(nmap_md, report)
             
         else:
             logger.warning("用户取消执行。")

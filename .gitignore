@@ -1,5 +1,6 @@
 # 0. 开发用笔记
 docs/prototype.txt
+project_structure.md
 
 # 1. 敏感信息：严禁提交 API 密钥
 .env
@@ -17,6 +18,8 @@ __pycache__/
 # 3. 数据与缓存：避免提交庞大的本地向量库
 data/db/
 .chroma/
+tmp.*
+pseudo_code
 
 # 4. 操作系统与编辑器
 .DS_Store
