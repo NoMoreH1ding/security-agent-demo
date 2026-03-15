@@ -67,3 +67,28 @@ class CommandExecutor:
 
         except Exception as e:
             return f"Unexpected Error: {str(e)}"
+        
+    def execute_raw(self, command: str) -> str:
+        """
+        直接执行字符串格式的系统命令，并返回原始输出内容。
+        """
+        try:
+            # 使用 shell=True 允许直接运行整串 Nmap 命令
+            # 注意：在生产环境中需确保 command 是受控生成的
+            process = subprocess.run(
+                command,
+                shell=True,
+                capture_output=True,
+                text=True,
+                encoding='utf-8', # 或者是你系统对应的编码
+                timeout=300       # 设置超时防止死锁
+            )
+            
+            if process.returncode != 0:
+                logger.error(f"命令执行失败: {process.stderr}")
+                return process.stderr
+                
+            return process.stdout
+        except Exception as e:
+            logger.exception(f"执行器出现异常: {e}")
+            return str(e)

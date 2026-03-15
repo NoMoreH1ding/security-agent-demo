@@ -29,3 +29,6 @@ class SimpleLogger:
             f.write(f"PROMPT:\n{prompt}\n\n")
             f.write(f"RESPONSE:\n{response}\n")
             f.write("-" * 50 + "\n\n")
+            
+agent_logger = SimpleLogger()
+from loguru import logger as _raw_logger
