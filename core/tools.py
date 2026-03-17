@@ -1,7 +1,7 @@
+from loguru import logger
 from langchain.tools import tool
 from core.executor import CommandExecutor
 from utils.parser import NmapXMLParser
-from loguru import logger
 
 # @tool
 def nmap_version_scanner(target_ip: str) -> str:

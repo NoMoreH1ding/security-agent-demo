@@ -1,7 +1,7 @@
 from httpx import get
 from langchain.agents import create_agent
 from dotenv import load_dotenv
-from tools import discovery
+from tools import ALL_TOOLS
 from utils.logger import agent_logger
 from loguru import logger
 
@@ -10,13 +10,20 @@ load_dotenv()
 
 agent = create_agent(
     model="deepseek-chat",
-    tools=[discovery.host_survival_check],
+    tools=ALL_TOOLS,
     system_prompt="你是一个渗透测试助手，可以执行各种渗透测试任务。请",
 )
 
 # 运行代理
 response = agent.invoke(
-    {"messages": [{"role": "user", "content": "确定一下目标192.168.43.1的存活情况"}]}
+    {
+        "messages": [
+            {
+                "role": "user",
+                "content": "确定一下目标192.168.43.1的端口开放情况和运行服务的版本",
+            }
+        ]
+    }
 )
 
 print("--- 完整返回 ---")
