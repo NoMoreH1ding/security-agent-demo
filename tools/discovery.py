@@ -15,7 +15,6 @@ def host_survival_check(
     """
     检查目标主机是否在线。在进行深度扫描之前，必须先运行此工具。
     """
-    logger.info(f"[TOOL CALL] host_survival_check started for {target}")
     start_time = time.time()
     try:
         # 使用 -sn (Ping Scan) 仅探测存活，不扫描端口，速度极快
@@ -28,11 +27,10 @@ def host_survival_check(
         if "Host is up" in result.stdout:
             line = result.stdout.split("\n")
             status_info = f"目标 {target} 在线。{line[3]}"
-            logger.info(f"[OUTPUT] {status_info}")
             return status_info
         else:
             status_info = f"目标 {target} 似乎不在线或禁用了 ICMP/Ping 回应。"
-            logger.warning(f"[OUTPUT] {status_info}")
+            logger.debug(f"[OUTPUT] {status_info}")
             return status_info
     except Exception as e:
         logger.exception(f"[ERROR] Unexpected error during host_survival_check")
@@ -49,10 +47,8 @@ def quick_port_scan(
     利用 Nmap 快速确定目标的端口开放信息, **仅探测端口,不包含版本信息**.
     仅当在确定了主机存活后执行, 且应是确定存活后的下一步动作
     """
-    logger.info(f"[TOOL CALL] quick_port_scan started for {target}")
     timing_map = {1: "T1", 2: "-T2", 3: "-T3", 4: "-T4"}
     t_param = timing_map.get(speed, "-T3")
-    logger.info(f"[PRE EXEC] 准备执行快速扫描, Target: {target}, Speed: {t_param}")
 
     try:
 
@@ -79,7 +75,6 @@ def quick_port_scan(
 
         # 正常解析
         port_report = parser.quick_scan_parser(result.stdout)
-        logger.info(f"[OUTPUT] {port_report}")
         return port_report
     except subprocess.TimeoutExpired:
         logger.error(f"[ERROR] 扫描超时! ")
@@ -94,10 +89,8 @@ def service_detail_scan(
     """
     利用 Nmap -sV确定端口开放后扫描其服务版本, **仅在探测端口开放后需要探测服务版本时执行**.
     """
-    logger.info(f"[TOOL CALL] service_detail_scan started for {target}")
     try:
         cmd = ["nmap", "-Pn", "-sV", "-sC", "-p", ports, "--max-retries", "1", target]
-        logger.info(f"[PRE EXEC]启动深度服务扫描: {target} 端口: {ports}")
         logger.debug(f"[EXEC] Command: {cmd}")
 
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=360)
@@ -107,8 +100,8 @@ def service_detail_scan(
             logger.error(f"[EXEC ERROR] Nmap failed: {result.stderr}")
 
         service_report = parser.service_scan_parser(result.stdout)
-        logger.info(f"[OUTPUT] {service_report}")
         return service_report
     except subprocess.TimeoutExpired:
         logger.error(f"[ERROR] 扫描超时! ")
         return f"扫描超时。此次扫描的目标端口为{ports},考虑减少不必要的端口扫描任务并等待后重试?"
+

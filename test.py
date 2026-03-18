@@ -4,9 +4,10 @@ from dotenv import load_dotenv
 from tools import ALL_TOOLS
 from utils.logger import agent_logger
 from loguru import logger
+from core.callbacks import AgentTraceCallbackHandler
 
 load_dotenv()
-
+trace_handler = AgentTraceCallbackHandler()
 
 agent = create_agent(
     model="deepseek-chat",
@@ -22,8 +23,9 @@ response = agent.invoke(
                 "role": "user",
                 "content": "确定一下目标192.168.43.1的端口开放情况和运行服务的版本",
             }
-        ]
-    }
+        ],
+    },
+    config= {"callbacks": [trace_handler]}
 )
 
 print("--- 完整返回 ---")
