@@ -21,7 +21,7 @@ response = agent.invoke(
         "messages": [
             {
                 "role": "user",
-                "content": "确定一下目标192.168.43.1的端口开放情况和运行服务的版本",
+                "content": "确定一下目标http://192.168.43.1:82的攻击面信息",
             }
         ],
     },
