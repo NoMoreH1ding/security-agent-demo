@@ -1,6 +1,5 @@
 import os
 import time
-import json
 from loguru import logger
 
 class SimpleLogger:
@@ -26,9 +25,10 @@ class SimpleLogger:
         trace_file = f"{self.session_path}/ai_trace.log"
         with open(trace_file, "a", encoding="utf-8") as f:
             f.write(f"--- [{'USER' if prompt else 'SYSTEM'}] @ {time.strftime('%H:%M:%S')} ---\n")
-            f.write(f"PROMPT:\n{prompt}\n\n")
-            f.write(f"RESPONSE:\n{response}\n")
+            if prompt:
+                f.write(f"PROMPT:\n{prompt}\n\n")
+            if response:
+                f.write(f"RESPONSE:\n{response}\n")
             f.write("-" * 50 + "\n\n")
             
 agent_logger = SimpleLogger()
-from loguru import logger as _raw_logger

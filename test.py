@@ -1,41 +1,31 @@
-from httpx import get
-from langchain.agents import create_agent
+from langchain_core.messages import HumanMessage
+from langchain_core.runnables import RunnableConfig
 from dotenv import load_dotenv
-from tools import ALL_TOOLS
-from utils.logger import agent_logger
-from loguru import logger
+from core.graph import create_security_graph, AgentState
+from utils.config import Config
 from core.callbacks import AgentTraceCallbackHandler
 
 load_dotenv()
+Config.validate()
 trace_handler = AgentTraceCallbackHandler()
 
-agent = create_agent(
-    model="deepseek-chat",
-    tools=ALL_TOOLS,
-    system_prompt="你是一个渗透测试助手，可以执行各种渗透测试任务。请",
-)
+# 使用 LangGraph 创建 Agent
+agent_graph = create_security_graph()
 
 # 运行代理
-response = agent.invoke(
-    {
-        "messages": [
-            {
-                "role": "user",
-                "content": "确定一下目标http://192.168.43.1:82的攻击面信息",
-            }
-        ],
-    },
-    config= {"callbacks": [trace_handler]}
-)
+target = "127.0.0.1"
+user_input = f"确定一下目标 {target} 的指纹信息"
 
-print("--- 完整返回 ---")
+inputs: AgentState = {"messages": [HumanMessage(content=user_input)]}
+config: RunnableConfig = {"callbacks": [trace_handler]}
+
+print("--- 启动分析 ---")
+# 简单调用 invoke
+response = agent_graph.invoke(inputs, config=config)
+
+print("\n--- 完整返回 ---")
 print(response)
 
 # 只获取最后的结果
 print("\n--- 最终答案 ---")
-# 注意：根据 create_agent 的具体实现，结果可能在 'output' 或 'messages' 的最后一个元素
-if "output" in response:
-    print(response["output"])
-else:
-    # 针对这类高阶 Agent，通常最后一条消息就是答案
-    print(response["messages"][-1].content)
+print(response["messages"][-1].content)

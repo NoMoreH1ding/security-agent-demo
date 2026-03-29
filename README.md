@@ -8,3 +8,4 @@ A demo of an AI Agent focus on Penatration Test
 
     Whatweb - 用于 Web 指纹深度识别
     Nmap - 用于基础端口扫描与服务探测
+    projectdiscovery/httpx - 用于对web目标快速进行画像
