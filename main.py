@@ -32,7 +32,14 @@ def main():
     # 4. 执行器
     # 在 LangGraph 中，执行器即为编译后的图 (CompiledGraph)
     # 我们使用 stream 模式来观察执行过程，类似于 AgentExecutor 的 verbose=True
-    inputs: AgentState = {"messages": [HumanMessage(content=user_input)]}
+    inputs: AgentState = {
+        "messages": [HumanMessage(content=user_input)],
+        "targets": [target],
+        "discovered_hosts": {},
+        "vulnerabilities": [],
+        "scan_history": [],
+        "current_phase": "recon"
+    }
     
     # 传入回调配置，以便在控制台或日志中观察链路
     config: RunnableConfig = {"callbacks": [trace_handler]}

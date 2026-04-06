@@ -1,5 +1,5 @@
 import operator
-from typing import Annotated, Sequence, TypedDict
+from typing import Annotated, Sequence, TypedDict, List, Dict, Literal, Optional, Any
 
 from langchain_core.messages import BaseMessage, SystemMessage
 from langchain_deepseek import ChatDeepSeek
@@ -8,10 +8,17 @@ from langgraph.prebuilt import ToolNode
 
 from tools import ALL_TOOLS
 from utils.config import Config
+from schema import HostInfo, Vulnerability, ScanRecord
 
 # 定义 Agent 状态
 class AgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], operator.add]
+    # 新增结构化状态字段
+    targets: List[str]
+    discovered_hosts: Dict[str, HostInfo]
+    vulnerabilities: List[Vulnerability]
+    scan_history: List[ScanRecord]
+    current_phase: Literal["recon", "scanning", "analyzing", "reporting"]
 
 # 系统提示词，基于最新工具集进行优化
 SYSTEM_PROMPT = """你是一名专业的自动化渗透测试助手（AI-PTA）。
