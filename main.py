@@ -21,7 +21,7 @@ agent_graph = create_security_graph()
 
 def main():
     # 示例目标（你可以根据需要修改或通过命令行传入）
-    target = "127.0.0.1"
+    target = "192.168.43.1"
     user_input = f"对 {target} 进行端口扫描、服务版本探测，并给出详细漏洞研判报告。"
     
     print(f"\n{'='*50}")
@@ -51,10 +51,10 @@ def main():
                 last_message = value["messages"][-1]
                 
                 # 针对不同节点输出不同的格式，增强可读性
-                if node_name == "agent":
+                if node_name in ["recon", "analysis", "reporting"]:
                     # 模型思考内容
                     if last_message.content:
-                        print(f"\n[Agent Thought]:\n{last_message.content}")
+                        print(f"\n[{node_name.capitalize()} Node]:\n{last_message.content}")
                     # 工具调用信息
                     if hasattr(last_message, "tool_calls") and last_message.tool_calls:
                         for tool_call in last_message.tool_calls:
