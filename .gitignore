@@ -22,6 +22,7 @@ data/db/
 .chroma/
 tmp.*
 pseudo_code
+checkpoints.sqlite
 
 # 4. 操作系统与编辑器
 .DS_Store

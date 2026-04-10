@@ -85,13 +85,31 @@ def service_detail_scan(
     ports: Annotated[str, "需要深入识别的具体端口，例如 '22,80,3306'"],
 ) -> str:
     """
-    利用 Nmap -sV确定端口开放后扫描其服务版本, **仅在探测端口开放后需要探测服务版本时执行**.
+    利用 Nmap 快速识别端口的服务版本。仅在确认端口开放后执行。
     """
     try:
-        cmd = ["nmap", "-Pn", "-sV", "-sC", "-p", ports, "--max-retries", "1", target]
+        # 优化参数：
+        # -T4: 提高扫描速度
+        # --version-intensity 2: 降低探测强度以加速，同时保持基本识别准确度
+        # --min-rate 500: 增加发包速率
+        cmd = [
+            "nmap",
+            "-Pn",
+            "-sV",
+            "-T4",
+            "--version-intensity",
+            "2",
+            "--min-rate",
+            "500",
+            "-p",
+            ports,
+            "--max-retries",
+            "1",
+            target,
+        ]
         logger.debug(f"[EXEC] Command: {cmd}")
 
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=360)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=180) # 缩短超时时间
         logger.debug(f"[OUTPUT] {result.stdout}")
 
         if result.returncode != 0:

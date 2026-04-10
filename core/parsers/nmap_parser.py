@@ -33,32 +33,33 @@ def quick_scan_parser(result):
 def service_scan_parser(result):
     """解析 -sV 的详细输出，转化为 Markdown 表格"""
     # 1. 提取端口、状态、服务、版本
-    # 匹配示例: 80/tcp open http Apache httpd 2.4.41 ((Ubuntu))
     # 改进后的正则：
-    # 1. (\d+/\w+) 匹配端口/协议
-    # 2. \s+open\s+ 匹配状态
-    # 3. ([\w-]+) 匹配服务名
-    # 4. \s*(.*)$ 匹配剩余的所有内容（直到行尾），使用 re.MULTILINE 确保 $ 匹配每行结尾
-    pattern = r"^(\d+/\w+)\s+open\s+([\w-]+)\s*(.*)$"
+    # \s*(\d+/\w+) 允许行首有空格
+    # \s+open\s+ 匹配状态
+    # ([\w\?\-\(\)\/]+) 匹配服务名，允许斜杠（如 ssl/http）
+    # (?:\s+(.*))? 可选匹配版本信息部分
+    pattern = r"^\s*(\d+/\w+)\s+open\s+([\w\?\-\(\)\/]+)(?:\s+(.*))?$"
     matches = re.findall(pattern, result, re.MULTILINE)
         
     if not matches:
-        return "深度扫描未发现详细的服务版本信息。"
+        # 尝试更宽松的匹配
+        pattern_relaxed = r"^\s*(\d+/\w+)\s+open\s+(.*)$"
+        matches = re.findall(pattern_relaxed, result, re.MULTILINE)
+        if not matches:
+            return "深度扫描未发现详细的服务版本信息。"
+        
+        table = "| Port/Proto | Info |\n| :--- | :--- |\n"
+        for m in matches:
+            table += f"| {m[0]} | {m[1].strip()} |\n"
+        return f"### 服务版本探测结果 (简易版)\n\n{table}"
 
     table = "| Port/Proto | Service | Version/Info |\n| :--- | :--- | :--- |\n"
         
     for m in matches:
         port_proto = m[0]
         service = m[1]
-        # 清洗 version 部分：
-        # 如果为空，则显示 'Unknown'
-        # 如果包含换行符或多余空格，进行截断处理
-        version = m[2].strip() if m[2].strip() else "Unknown"
+        version = m[2].strip() if m[2] and m[2].strip() else "Unknown"
             
-        # 关键修复：防止版本信息里包含下一行的端口（针对 53 端口那样的异常）
-        if "/" in version and "tcp" in version: # 简单启发式判断，防止误吞下一行
-            version = "Unknown (Check Raw Log)"
-
         table += f"| {port_proto} | {service} | {version} |\n"
             
     return f"### 服务版本探测结果\n\n{table}\n\n*提示：请根据版本号检索是否存在已知漏洞。*"

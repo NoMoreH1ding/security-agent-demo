@@ -5,12 +5,13 @@
 ---
 
 ## 1. 结构化状态管理 🏗️
-**当前状态：** 在 `AgentState` 中仅使用 `messages`。
+**当前状态：** 已实现核心字段，并增加了 Token 压缩与上下文过滤逻辑。
 **目标：** 实现特定领域的循环状态以跟踪渗透测试进度。
 
-- [x] **定义结构化状态**：添加 `targets`（列表）、`discovered_services`（字典）、`vulnerabilities`（列表）和 `scan_history` 等字段。
-- [ ] **原因**：帮助 LLM 维护目标的“心理地图”，而无需重新阅读整个消息历史记录，从而节省 Token 并提高准确性。
-- [ ] **如何开始**：更新 `core/graph.py` 中的 `AgentState` 以包含这些字段，并更新节点函数以填充它们。
+- [x] **定义结构化状态**：添加 `targets`、`discovered_hosts` 等字段。
+- [x] **上下文压缩 (Token 优化)**：实现 `filter_messages` 逻辑，自动截断过长工具输出并保持消息对完整性。
+- [x] **提示词边界优化**：明确 Recon/Analysis 节点职责，严禁重复生成报告。
+
 
 ## 2. 多代理/多节点专业化 🤖
 **当前状态：** 单个“代理”节点处理从发现到分析的所有事务。
@@ -23,13 +24,13 @@
 - [ ] **如何开始**：在 `core/graph.py` 中创建新的节点函数，并使用 `StateGraph` 定义状态转换。
 
 ## 3. 持久化与人机回环 (HITL) ⏸️
-**当前状态：** 执行是瞬态的；一旦停止，状态就会丢失。
+**当前状态：** 执行支持基于 `SqliteSaver` 的持久化。
 **目标：** 支持长时间运行的任务和手动审批。
 
-- [ ] **添加检查点**：使用 `SqliteSaver` 持久化图状态。
-- [ ] **添加中断**：在执行高影响工具（例如深度扫描或主动利用）之前实现 `human_review` 节点。
-- [ ] **原因**：现实世界的渗透测试可能需要数小时。检查点允许恢复执行，而 HITL 确保了安全性和范围合规性。
-- [ ] **如何开始**：从 `langgraph.checkpoint.sqlite` 导入 `SqliteSaver` 并将其传递给 `workflow.compile(checkpointer=...)`。
+- [x] **添加检查点**：使用 `SqliteSaver` 持久化图状态。
+- [x] **添加中断**：在执行高影响工具（例如深度扫描或主动利用）之前实现 `human_review` 节点。
+- [x] **原因**：现实世界的渗透测试可能需要数小时。检查点允许恢复执行，而 HITL 确保了安全性和范围合规性。
+- [x] **如何开始**：从 `langgraph.checkpoint.sqlite` 导入 `SqliteSaver` 并将其传递给 `workflow.compile(checkpointer=...)`。
 
 ## 4. 工具丰富与健壮性 🛠️
 **当前状态：** 基础的 Nmap、WAFW00F 和 WhatWeb。
