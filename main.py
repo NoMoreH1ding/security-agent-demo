@@ -59,8 +59,8 @@ def update_state_from_output(state: AgentState, node_name: str, value: dict):
                         s.version = p_ver.strip()
 
 def main():
-    target = "192.168.43.1"
-    user_input = f"对 {target} 进行端口扫描、服务版本探测，并给出详细漏洞研判报告。"
+    target = "192.168.43.150"
+    user_input = f"对 {target} 的 8080 端口进行漏洞深度研判，特别关注 Web 安全风险并给出详细修复方案。"
     
     print(f"\n{'='*50}")
     print(f"--- 启动安全分析 Agent (LangGraph 优化版) ---")
@@ -79,7 +79,7 @@ def main():
     
     config = {
         "callbacks": [trace_handler],
-        "configurable": {"thread_id": "security_scan_session_002"}
+        "configurable": {"thread_id": "verification_node_test_001"}
     }
     
     # 开始执行工作流

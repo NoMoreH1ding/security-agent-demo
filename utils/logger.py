@@ -20,15 +20,22 @@ class SimpleLogger:
         logger.add(f"{self.session_path}/system.log", level="DEBUG", 
                    format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}")
 
-    def log_ai_trace(self, prompt, response):
-        """记录 AI 交互，用于分析 Prompt 效果和排查幻觉"""
+    def log_ai_trace(self, role: str, content: str, title: str = ""):
+        """
+        记录 AI 交互，支持角色标识。
+        role: 角色名，如 RECON, ANALYSIS, TOOL, OBSERVER
+        content: 日志内容
+        title: 可选标题，如工具名或提示词说明
+        """
         trace_file = f"{self.session_path}/ai_trace.log"
+        timestamp = time.strftime('%H:%M:%S')
+        
+        # 针对长内容的截断处理（可选，防止日志文件过大）
+        display_content = content
+        
         with open(trace_file, "a", encoding="utf-8") as f:
-            f.write(f"--- [{'USER' if prompt else 'SYSTEM'}] @ {time.strftime('%H:%M:%S')} ---\n")
-            if prompt:
-                f.write(f"PROMPT:\n{prompt}\n\n")
-            if response:
-                f.write(f"RESPONSE:\n{response}\n")
-            f.write("-" * 50 + "\n\n")
+            f.write(f"[{timestamp}] === {role} === {title}\n")
+            f.write(f"{display_content}\n")
+            f.write("=" * 60 + "\n\n")
             
 agent_logger = SimpleLogger()

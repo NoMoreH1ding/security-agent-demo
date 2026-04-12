@@ -31,38 +31,48 @@ def quick_scan_parser(result):
         return output
 
 def service_scan_parser(result):
-    """解析 -sV 的详细输出，转化为 Markdown 表格"""
-    # 1. 提取端口、状态、服务、版本
-    # 改进后的正则：
-    # \s*(\d+/\w+) 允许行首有空格
-    # \s+open\s+ 匹配状态
-    # ([\w\?\-\(\)\/]+) 匹配服务名，允许斜杠（如 ssl/http）
-    # (?:\s+(.*))? 可选匹配版本信息部分
-    pattern = r"^\s*(\d+/\w+)\s+open\s+([\w\?\-\(\)\/]+)(?:\s+(.*))?$"
-    matches = re.findall(pattern, result, re.MULTILINE)
-        
-    if not matches:
-        # 尝试更宽松的匹配
-        pattern_relaxed = r"^\s*(\d+/\w+)\s+open\s+(.*)$"
-        matches = re.findall(pattern_relaxed, result, re.MULTILINE)
-        if not matches:
-            return "深度扫描未发现详细的服务版本信息。"
-        
-        table = "| Port/Proto | Info |\n| :--- | :--- |\n"
-        for m in matches:
-            table += f"| {m[0]} | {m[1].strip()} |\n"
-        return f"### 服务版本探测结果 (简易版)\n\n{table}"
+    """
+    解析 -sV -sC 的详细输出，转化为 Markdown 表格并附加关键脚本结果。
+    """
+    if "Host is up" not in result:
+        return "深度探测结束：目标不在线。"
 
-    table = "| Port/Proto | Service | Version/Info |\n| :--- | :--- | :--- |\n"
+    # 1. 提取所有服务行和紧随其后的脚本结果
+    # 逻辑：先切分出端口段
+    port_sections = re.split(r"^\s*(\d+/\w+)\s+open\s+", result, flags=re.MULTILINE)[1:]
+    
+    if not port_sections:
+        return "深度探测结束：未发现详细服务信息。"
+
+    table = "| Port/Proto | Service | Version/Info | Interesting Details |\n"
+    table += "| :--- | :--- | :--- | :--- |\n"
+
+    # re.split 之后，port_sections 的内容是 [port1, info1, port2, info2, ...]
+    for i in range(0, len(port_sections), 2):
+        port_proto = port_sections[i]
+        info = port_sections[i+1]
         
-    for m in matches:
-        port_proto = m[0]
-        service = m[1]
-        version = m[2].strip() if m[2] and m[2].strip() else "Unknown"
+        # 提取服务名和版本 (第一行)
+        first_line = info.split('\n')[0].strip()
+        parts = re.split(r"\s+", first_line, maxsplit=1)
+        service = parts[0]
+        version = parts[1] if len(parts) > 1 else "Unknown"
+        
+        # 提取高价值的脚本结果 (如 http-title, ssl-cert, smb-security-mode)
+        scripts = []
+        script_matches = re.findall(r"^\|_?\s*([\w\-]+):\s+(.*)$", info, re.MULTILINE)
+        for s_name, s_val in script_matches:
+            # 过滤掉一些过于冗长的、对 LLM 无意义的信息
+            if s_name in ["http-title", "http-server-header", "ssl-cert", "rdp-ntlm-info", "smb-security-mode", "mysql-info"]:
+                clean_val = s_val.strip()
+                if len(clean_val) > 40:
+                    clean_val = clean_val[:37] + "..."
+                scripts.append(f"{s_name}: {clean_val}")
+        
+        details = ", ".join(scripts) if scripts else "-"
+        table += f"| {port_proto} | {service} | {version} | {details} |\n"
             
-        table += f"| {port_proto} | {service} | {version} |\n"
-            
-    return f"### 服务版本探测结果\n\n{table}\n\n*提示：请根据版本号检索是否存在已知漏洞。*"
+    return f"### 深度服务与配置探测结果\n\n{table}\n\n*提示：请综合版本号与配置信息进行漏洞研判。*"
     
 
 

@@ -1,5 +1,7 @@
-from typing import List, Optional, Dict, Any
+import operator
+from typing import List, Optional, Dict, Any, Annotated, Sequence, Literal, TypedDict
 from pydantic import BaseModel, Field
+from langchain_core.messages import BaseMessage
 
 class ServiceInfo(BaseModel):
     """服务详细信息"""
@@ -35,3 +37,16 @@ class ScanRecord(BaseModel):
     timestamp: str
     status: str  # success, failed
     raw_output_path: Optional[str] = None
+
+# 定义 Agent 状态
+class AgentState(TypedDict):
+    messages: Annotated[Sequence[BaseMessage], operator.add]
+    # 结构化状态字段
+    targets: List[str]
+    discovered_hosts: Dict[str, HostInfo]
+    vulnerabilities: List[Vulnerability]
+    scan_history: List[ScanRecord]
+    current_phase: Literal["recon", "scanning", "analyzing", "reporting"]
+    # HITL 相关
+    review_approved: bool  # 审核是否通过
+

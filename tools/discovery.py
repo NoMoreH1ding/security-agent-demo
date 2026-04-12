@@ -39,85 +39,83 @@ def host_survival_check(
 def quick_port_scan(
     target: Annotated[str, "目标IP/域名"],
     top_n: Annotated[int, "扫描最常用的端口数量, 默认为100, 可按需增减该数值."] = 100,
-    speed: Annotated[int, "扫描速度等级 (1-4)。1最慢最隐蔽，4最快。默认为3。"] = 3,
+    speed: Annotated[int, "扫描速度等级 (1-5)。1最慢，5最快。默认为4。"] = 4,
 ) -> str:
     """
-    利用 Nmap 快速确定目标的端口开放信息, **仅探测端口,不包含版本信息**.
-    仅当在确定了主机存活后执行, 且应是确定存活后的下一步动作
+    利用 Nmap 极速确定目标的端口开放情况。
+    这是初次探测的必备步骤，仅发现端口，不进行版本识别，以确保最高效率。
     """
-    timing_map = {1: "T1", 2: "-T2", 3: "-T3", 4: "-T4"}
-    t_param = timing_map.get(speed, "-T3")
+    timing_map = {1: "-T1", 2: "-T2", 3: "-T3", 4: "-T4", 5: "-T5"}
+    t_param = timing_map.get(speed, "-T4")
 
     try:
-
+        # 使用 -F 或 --top-ports 配合 -Pn 和 SYN 扫描 (-sS 默认)
         cmd = [
             "nmap",
             "-Pn",
             t_param,
-            "--top-ports",
-            f"{top_n}",
-            "--max-retries",
-            "1",
+            "--top-ports", str(top_n),
+            "--open",  # 只显示开放端口，减少解析负担
+            "--max-retries", "1",
             target,
         ]
-        logger.debug(f"[EXEC] Command: {cmd}")
+        logger.info(f"[TOOL] 执行快速端口扫描: {target} (Top {top_n})")
+        logger.debug(f"[EXEC] Command: {' '.join(cmd)}")
+        
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-        logger.debug(f"[OUTPUT] {result.stdout}")
-
+        logger.debug(f"[RAW OUTPUT] {result.stdout}")
+        
         if result.returncode != 0:
-            logger.error(f"[EXEC ERROR] Nmap failed: {result.stderr}")
+            logger.error(f"[NMAP ERROR] {result.stderr}")
 
-        # 检测是否出现端口扫描被防火墙拒绝的情况
-        if "filtered" in result.stdout:
-            logger.warning(f"[WARNING] 一些端口可能受防火墙保护")
-
-        # 正常解析
         port_report = parser.quick_scan_parser(result.stdout)
         return port_report
     except subprocess.TimeoutExpired:
-        logger.error(f"[ERROR] 扫描超时! ")
-        return f"扫描超时。此次扫描使用的关键参数为{t_param} --top-ports {top_n},考虑更改相关参数并等待后重试?"
+        return "快速扫描超时，请尝试减少 top_n 数量或提高速度等级。"
+    except Exception as e:
+        return f"扫描异常: {str(e)}"
 
 
 @tool
 def service_detail_scan(
     target: Annotated[str, "目标IP/域名"],
-    ports: Annotated[str, "需要深入识别的具体端口，例如 '22,80,3306'"],
+    ports: Annotated[str, "需要深入识别的具体端口，例如 '22,80,445'"],
 ) -> str:
     """
-    利用 Nmap 快速识别端口的服务版本。仅在确认端口开放后执行。
+    针对已发现的开放端口进行深度扫描。
+    包含版本探测(-sV)和默认脚本扫描(-sC)，能获取服务版本、OS指纹、Web标题等核心信息。
     """
     try:
-        # 优化参数：
-        # -T4: 提高扫描速度
-        # --version-intensity 2: 降低探测强度以加速，同时保持基本识别准确度
-        # --min-rate 500: 增加发包速率
+        logger.info(f"[TOOL] 执行深度服务识别: {target} (Ports: {ports})")
+        # 优化组合：
+        # -sV: 版本识别
+        # -sC: 默认脚本扫描（获取高价值信息的核心）
+        # --version-intensity 2: 轻量级识别，兼顾速度
+        # --min-rate 1000: 强制发包速率，在端口少时极快
         cmd = [
             "nmap",
             "-Pn",
             "-sV",
+            "-sC",
             "-T4",
-            "--version-intensity",
-            "2",
-            "--min-rate",
-            "500",
-            "-p",
-            ports,
-            "--max-retries",
-            "1",
+            "--version-intensity", "2",
+            "--min-rate", "1000",
+            "-p", ports,
+            "--max-retries", "1",
             target,
         ]
-        logger.debug(f"[EXEC] Command: {cmd}")
-
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=180) # 缩短超时时间
-        logger.debug(f"[OUTPUT] {result.stdout}")
-
+        logger.debug(f"[EXEC] Command: {' '.join(cmd)}")
+        
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        logger.debug(f"[RAW OUTPUT] {result.stdout}")
+        
         if result.returncode != 0:
-            logger.error(f"[EXEC ERROR] Nmap failed: {result.stderr}")
+            logger.error(f"[NMAP ERROR] {result.stderr}")
 
         service_report = parser.service_scan_parser(result.stdout)
         return service_report
     except subprocess.TimeoutExpired:
-        logger.error(f"[ERROR] 扫描超时! ")
-        return f"扫描超时。此次扫描的目标端口为{ports},考虑减少不必要的端口扫描任务并等待后重试?"
+        return f"深度扫描超时。建议分批扫描端口: {ports}"
+    except Exception as e:
+        return f"扫描异常: {str(e)}"
 
