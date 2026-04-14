@@ -15,6 +15,7 @@ from core.nodes.security_nodes import (
     create_reporting_node,
     observer_node
 )
+from core.nodes.planner_node import planner_node
 
 def should_continue(state: AgentState, enable_hitl: bool = False):
     messages = state['messages']
@@ -36,6 +37,9 @@ def should_continue(state: AgentState, enable_hitl: bool = False):
         if state.get("vulnerabilities"):
             return "verify"
         return "report"
+    elif phase == "verifying":
+        # Verification 阶段完成后进入报告
+        return "report"
     return END
 
 def create_security_graph(model_name: str = "deepseek-chat", use_checkpoint: bool = True, enable_hitl: bool = False):
@@ -47,25 +51,33 @@ def create_security_graph(model_name: str = "deepseek-chat", use_checkpoint: boo
         temperature=0.1
     )
     
-    # 按节点分配工具组
-    from tools.discovery import host_survival_check, quick_port_scan, service_detail_scan
-    from tools.web import nuclei_scan, waf_detection
+    # 按角色分配工具组
+    from tools.recon import host_survival_check, quick_port_scan, waf_detection
+    from tools.analysis import service_detail_scan, nuclei_scan, dir_search, sqlmap_scan
+    from tools.verification import web_request, sqlmap_verify, web_login_analyzer
+    from tools.common import web_request as common_web_request
+    from tools.fuzzing import ffuf_dir_scan, ffuf_param_scan, ffuf_post_scan, ffuf_vhost_scan
+    from tools.shiro_detect import shiro_detect
+
+    # RECON 仅允许基础网络层工具，禁止任何 HTTP/应用层工具
     recon_tools = [host_survival_check, quick_port_scan, waf_detection]
-    analysis_tools = [service_detail_scan, nuclei_scan, waf_detection]
+    analysis_tools = [service_detail_scan, nuclei_scan, dir_search, waf_detection, sqlmap_scan, web_login_analyzer, common_web_request, ffuf_dir_scan, ffuf_param_scan, ffuf_post_scan, ffuf_vhost_scan, shiro_detect]
+    verification_tools = [web_request, sqlmap_verify, web_login_analyzer]
     
     # 构建节点实例
     llm_recon = llm.bind_tools(recon_tools)
     llm_analysis = llm.bind_tools(analysis_tools)
-    
     node_recon = create_recon_node(llm_recon)
     node_analysis = create_analysis_node(llm_analysis)
-    node_verification = create_verification_node(llm_analysis) # 验证节点也使用分析工具
+    # 验证节点使用专用工具组
+    node_verification = create_verification_node(llm.bind_tools(verification_tools))
     node_reporting = create_reporting_node(llm)
 
     # 初始化工作流图
     workflow = StateGraph(AgentState)
 
     # 添加节点
+    workflow.add_node("planner", planner_node)
     workflow.add_node("recon", node_recon)
     workflow.add_node("analysis", node_analysis)
     workflow.add_node("verification", node_verification)
@@ -75,7 +87,10 @@ def create_security_graph(model_name: str = "deepseek-chat", use_checkpoint: boo
     workflow.add_node("observer", observer_node)
 
     # 设置入口
-    workflow.set_entry_point("recon")
+    workflow.set_entry_point("planner")
+
+    # 0. Planner → Recon
+    workflow.add_edge("planner", "recon")
 
     # 1. Recon 阶段
     workflow.add_conditional_edges("recon", 
@@ -90,9 +105,10 @@ def create_security_graph(model_name: str = "deepseek-chat", use_checkpoint: boo
     # 2. 工具回调闭环
     workflow.add_edge("tools", "observer")
     workflow.add_conditional_edges("observer", 
-        lambda state: "recon" if state["current_phase"] == "recon" else "analysis",
+        lambda state: "recon" if state["current_phase"] == "recon" else "verification" if state["current_phase"] == "verifying" else "analysis",
         {
             "recon": "recon",
+            "verification": "verification",
             "analysis": "analysis"
         }
     )
@@ -111,10 +127,12 @@ def create_security_graph(model_name: str = "deepseek-chat", use_checkpoint: boo
 
     # 4. Verification 阶段
     workflow.add_conditional_edges("verification", 
-        lambda state: "tools" if (hasattr(state['messages'][-1], "tool_calls") and state['messages'][-1].tool_calls) else "reporting",
+        lambda state: should_continue(state, enable_hitl), 
         {
             "tools": "tools",
-            "reporting": "reporting"
+            "review": "human_review",
+            "report": "reporting",
+            END: END
         }
     )
 

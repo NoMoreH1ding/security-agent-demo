@@ -54,9 +54,9 @@ def service_scan_parser(result):
         
         # 提取服务名和版本 (第一行)
         first_line = info.split('\n')[0].strip()
-        parts = re.split(r"\s+", first_line, maxsplit=1)
-        service = parts[0]
-        version = parts[1] if len(parts) > 1 else "Unknown"
+        parts = re.split(r"\s{2,}", first_line, maxsplit=1)  # 用多个空格分割，更准确
+        service = parts[0] if parts else "Unknown"
+        version = parts[1].strip() if len(parts) > 1 else "Unknown"
         
         # 提取高价值的脚本结果 (如 http-title, ssl-cert, smb-security-mode)
         scripts = []

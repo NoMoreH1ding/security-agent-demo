@@ -14,59 +14,21 @@ Config.validate()
 trace_handler = AgentTraceCallbackHandler()
 agent_graph = create_security_graph(use_checkpoint=True, enable_hitl=False)
 
-def update_state_from_output(state: AgentState, node_name: str, value: dict):
-    """
-    从工具输出中解析信息并更新结构化状态。
-    这是一个简易实现，实际可由专门的 Parser 节点完成。
-    """
-    if node_name != "tools":
-        return
-    
-    last_msg = value["messages"][-1]
-    if not isinstance(last_msg, ToolMessage):
-        return
-
-    content = last_msg.content
-    
-    # 简单的正则提取 (针对 nmap_parser 的输出)
-    # 提取 IP (从目标字段或上下文)
-    # 这里我们简化处理，实际中应从 tool_call 的参数中获取 target
-    
-    # 解析开放端口 (quick_port_scan 输出: 发现开放端口: 80/tcp (http), ...)
-    if "发现开放端口:" in content:
-        ports = re.findall(r"(\d+)/(\w+)\s+\((.*?)\)", content)
-        # 假设我们只有一个目标
-        target = state["targets"][0]
-        if target not in state["discovered_hosts"]:
-            state["discovered_hosts"][target] = HostInfo(ip=target)
-        
-        host = state["discovered_hosts"][target]
-        for p_num, p_proto, p_svc in ports:
-            if not any(s.port == int(p_num) for s in host.services):
-                host.services.append(ServiceInfo(port=int(p_num), protocol=p_proto, service_name=p_svc))
-
-    # 解析详细服务信息 (service_detail_scan 输出表格)
-    if "| Port/Proto | Service | Version/Info |" in content:
-        target = state["targets"][0]
-        host = state["discovered_hosts"].get(target)
-        if host:
-            # 提取表格行
-            rows = re.findall(r"\| (\d+)/(\w+) \| (.*?) \| (.*?) \|", content)
-            for p_num, p_proto, p_svc, p_ver in rows:
-                for s in host.services:
-                    if s.port == int(p_num):
-                        s.service_name = p_svc.strip()
-                        s.version = p_ver.strip()
-
 def main():
     target = "192.168.43.150"
-    user_input = f"对 {target} 的 8080 端口进行漏洞深度研判，特别关注 Web 安全风险并给出详细修复方案。"
-    
+    user_input = f"""
+    对目标 {target} 进行全方位的安全审计：
+    1. 侦察所有开放端口及 Web 服务状态。
+    2. 针对 80 端口的 DVWA 服务，尝试使用用户名 admin 和密码 password 登录 /login.php。一旦获取 Cookie，请执行授权后的漏洞深度扫描。
+    3. 针对 8080 和 8081 端口的服务进行深度漏洞研判（如 Spring Gateway、SQL 注入等）。
+    4. 汇总所有发现，生成一份包含身份突破证据和漏洞 PoC 的最终审计报告。
+    """
+
     print(f"\n{'='*50}")
-    print(f"--- 启动安全分析 Agent (LangGraph 优化版) ---")
+    print(f"--- 启动安全分析 Agent (全量实战验证版) ---")
     print(f"目标: {target}")
     print(f"{'='*50}\n")
-    
+
     inputs: AgentState = {
         "messages": [HumanMessage(content=user_input)],
         "targets": [target],
@@ -74,19 +36,20 @@ def main():
         "vulnerabilities": [],
         "scan_history": [],
         "current_phase": "recon",
+        "sessions": {},
         "review_approved": False
     }
-    
+
     config = {
         "callbacks": [trace_handler],
-        "configurable": {"thread_id": "verification_node_test_001"}
+        "configurable": {"thread_id": "auth_isolation_test_001"}
     }
     
     # 开始执行工作流
     for event in agent_graph.stream(inputs, config=config):
         for node_name, value in event.items():
-            # 更新结构化状态
-            update_state_from_output(inputs, node_name, value)
+            # 注意：结构化状态更新 (discovered_hosts, vulnerabilities, sessions) 
+            # 现在完全由图内部的 'observer' 节点自动处理，此处无需手动解析输出。
             
             if "messages" in value:
                 last_message = value["messages"][-1]

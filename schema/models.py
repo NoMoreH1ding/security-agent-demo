@@ -47,6 +47,10 @@ class AgentState(TypedDict):
     vulnerabilities: List[Vulnerability]
     scan_history: List[ScanRecord]
     current_phase: Literal["recon", "scanning", "analyzing", "reporting"]
+    # 身份认证信息存储库，格式: {"192.168.1.1:80": "PHPSESSID=xxx", ...}
+    sessions: Dict[str, str]
     # HITL 相关
-    review_approved: bool  # 审核是否通过
+    review_approved: bool
+    # Planner 任务分发: 各节点的专属任务指令
+    planned_tasks: Dict[str, str]
 
