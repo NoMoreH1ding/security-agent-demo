@@ -40,3 +40,4 @@ gemini_session.sh
 reports/*.pdf
 reports/*.md
 logs/*/*.log
+*.log
