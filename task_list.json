@@ -1,0 +1,24 @@
+{
+  "tasks": [
+    {
+      "component": "GeoServer",
+      "vulnerabilities": ["CVE-2021-40822", "CVE-2022-24816"]
+    },
+    {
+      "component": "Ghostscript",
+      "vulnerabilities": ["CVE-2018-19475"]
+    },
+    {
+      "component": "Nacos",
+      "vulnerabilities": ["CVE-2021-29442"]
+    },
+    {
+      "component": "Spring",
+      "vulnerabilities": ["CVE-2018-1270", "CVE-2018-1273", "CVE-2022-22947", "CVE-2022-22963", "CVE-2022-22965", "CVE-2022-22978"]
+    },
+    {
+      "component": "Drupal",
+      "vulnerabilities": ["CVE-2014-3704", "CVE-2018-7602", "CVE-2019-6339", "CVE-2019-6341"]
+    }
+  ]
+}

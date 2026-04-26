@@ -10,6 +10,7 @@ GEMINI.md
 
 # 2. Python 环境：无需提交，他人通过 requirements.txt 重建
 .venv/
+.claude/
 venv/
 ENV/
 build/
@@ -33,6 +34,7 @@ checkpoints.*
 .codebuddyignore
 .qwen/
 .qwenignore
+.claudeignore
 run.sh
 gemini_session.sh
 
