@@ -93,10 +93,11 @@ def _build_ffuf_base_cmd(
         "-json",  # JSON 输出便于解析
         "-t", str(threads),
         "-timeout", str(timeout),
-        "-fc", "404",  # 过滤 404
         "-mc", match_codes,  # 匹配的状态码
+        "-ac",  # 重要：启用自动校准以过滤虚假结果 (wildcard responses)
         "-of", "json",  # 输出格式
         "-maxtime-job", "300",  # 单次任务最大时间 5 分钟
+        "-se",  # 遇到严重网络错误时停止
     ]
     
     if mode == "param":

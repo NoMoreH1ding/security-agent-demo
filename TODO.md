@@ -9,46 +9,43 @@
 - [x] **身份认证支持 (Auth-Aware)**：Observer 自动同步 Session Cookie，支持多域隔离。
 - [x] **Web 工具链全覆盖**：集成了 `Nuclei`, `Dirsearch`, `Sqlmap`, `Web Request`, `Login Analyzer`。
 - [x] **Token 极致压缩**：基于 Observer 的阶段性总结与消息合法性过滤。
+- [x] **阶段跳转逻辑修复**：通过 `should_continue` 识别 `[VERIFY]` 和 `[DONE]` 标签，彻底打通了从 Analysis 到 Verification 的闭环。
+- [x] **死循环深度治理**：引入“全站受限判定”与“三击止损”规则，解决了模型在 404 或重定向页面无意义徘徊的问题。
+- [x] **工具物理拦截守卫**：为 `dir_search` 和 `nuclei_scan` 增加了内部状态缓存，强制防止同目标重复扫描。
+- [x] **多端口漏洞精确归属**：优化 `Vulnerability` 模型，支持 `IP:Port` 级别的漏洞追踪，消除了同 IP 多端口审计时的上下文污染。
 
 ---
 
 ## 1. 核心逻辑与工作流优化 (Core Logic & Workflow) 🧠
 **目标：** 解决节点职责塌缩问题，提升探测的精准度。
 
-- [x] **强化节点职责硬约束**：通过 Prompt 工程 + Output Parser 强制拦截 RECON 节点的报告生成行为，确保其仅输出资产清单，将研判压力留给后续节点。
-- [x] **通用工具权限重构**：将 `web_request` 从验证专用释放为全阶段通用工具（`tools/common.py`），允许 RECON 节点进行 Banner 抓取，Analysis 节点快速验证端点。
-- [x] **启发式探测与模糊测试 (Fuzzing)**：
-    - 基于 Kali Linux `ffuf` (Fuzz Faster U Fool) 构建专业 Fuzz 工具链。
-    - `ffuf_dir_scan`：高速目录/路径发现，支持 SecLists 字典与 Cookie 认证。
-    - `ffuf_param_scan`：参数名模糊测试，探测隐藏后端参数与调试入口。
-    - `ffuf_post_scan`：POST 数据 Fuzz，适用于登录爆破、API 注入测试。
-    - `ffuf_vhost_scan`：虚拟主机发现，枚举 Host 头发现隐藏站点。
-    - 配套 `ffuf_parser.py` 解析 JSON 输出为结构化 Markdown。
+- [x] **强化节点职责硬约束**：通过 Prompt 工程强制拦截 RECON 节点的报告生成行为。
+- [x] **通用工具权限重构**：将 `web_request` 释放为全阶段通用工具。
+- [ ] **多端口横向记忆 (Cross-Port Correlation)**：允许 Agent 在审计新端口前，“复习”同 IP 下其他端口已发现的 OS、组件版本和指纹信息。
+- [ ] **决策树工具降级**：当重型工具（如 nuclei）失败时，引导 Agent 自动降级到轻量级 Fuzz，而不是回退到盲目的 web_request。
 
 ## 2. 自动化与智能登录增强 🔐
 **目标：** 实现完全无人值守的身份突破。
 
-- [ ] **多会话并行管理**：完善 `sessions` 字典，支持在单次任务中维护多个独立目标的复杂认证状态。
-- [ ] **登录失败自愈**：当 `web_request` 提示 Cookie 过期时，触发自动重登录逻辑。
+- [ ] **共享凭证池**：将 8080 端口发现的有效 Session/Token 自动尝试同步到 8081 等其他同域端口。
+- [ ] **登录失败自愈**：当提示 Cookie 过期时，触发自动重登录逻辑。
 
 ## 3. 专业报告与证据链持久化 📝
 **目标：** 将审计成果转化为标准交付物。
 
-- [ ] **结构化报告生成工具**：将目前控制台输出的报告自动保存为 `reports/task_id/report.md`。
-- [ ] **证据证据链归档**：Observer 自动截取验证成功的原始 HTTP 回显并存储为独立文件。
+- [ ] **结构化报告生成工具**：将目前控制台输出的报告自动保存为 `reports/{task_id}/report.md`。
+- [ ] **证据证据链自动归档**：在验证成功时，由 Observer 自动将原始 HTTP 回执保存为独立文件。
 
 ## 4. 安全合规与边界控制 (Scope Guard) 🛡️
 **目标：** 确保 Agent 的行为严格限制在授权范围内。
 
-- [ ] **目标范围校验增强**：修复 RECON 阶段可能出现的地址判断偏移，确保 `targets` 校验覆盖所有工具链。
-- [ ] **高风险操作二次确认**：对可能导致服务中断的操作增加 HITL (人工审核) 强校验。
+- [ ] **高风险操作二次确认**：对删除、重置类操作（如 setup.php）增加 HITL (人工审核) 强校验。
 
 ## 5. 可观测性与工程化 📈
 **目标：** 提升系统的调试效率和成本可控性。
 
-- [ ] **Token 成本统计**：在 `AgentState` 中记录各阶段消耗，并在报告末尾给出成本分析。
-- [ ] **状态快照 Diff**：实现工具执行前后结构化状态的差异对比功能。
+- [ ] **Token 成本熔断器**：在 `AgentState` 中实时累加消耗，单个任务超过阈值时强制收网产出报告。
+- [ ] **状态快照 Diff**：仅向 LLM 发送工具执行后发生变化的状态增量，大幅节省 Input Token。
 
 ---
-*由 Gemini CLI 更新 - 2026-04-12*
-                                                                    
+*最后更新：2026-04-18 (By Gemini CLI - 深度修复死循环与跳转逻辑)*

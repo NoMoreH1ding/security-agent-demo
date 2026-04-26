@@ -8,43 +8,53 @@ from loguru import logger
 
 def ffuf_directory_parser(raw_output: str) -> str:
     """
-    解析 ffuf 目录/路径发现的 JSONL 输出
-    
-    Args:
-        raw_output: ffuf 的 JSONL 格式输出（每行一个 JSON 对象）
-    
-    Returns:
-        结构化的 Markdown 摘要
+    解析 ffuf 目录/路径发现的 JSON 输出
     """
     if not raw_output or not raw_output.strip():
         return "ffuf 扫描完成，未发现任何响应。"
 
     try:
         findings = []
-        for line in raw_output.strip().split('\n'):
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                data = json.loads(line)
-                # 过滤掉 404 或过短的结果
-                status = data.get("status", 0)
-                if status == 404:
-                    continue
-                findings.append({
-                    "status": status,
-                    "length": data.get("length", 0),
-                    "url": data.get("url", ""),
-                    "redirect": data.get("redirectlocation", ""),
-                    "position": data.get("position", 0),
-                })
-            except json.JSONDecodeError:
-                continue
+        # ffuf 现在的输出可能是完整的 JSON (包含 "results" 键)，也可能是 JSONL
+        try:
+            full_data = json.loads(raw_output)
+            if isinstance(full_data, dict) and "results" in full_data:
+                raw_results = full_data["results"]
+            else:
+                raw_results = [full_data] if isinstance(full_data, dict) else []
+        except json.JSONDecodeError:
+            # 尝试按行解析 JSONL
+            raw_results = []
+            for line in raw_output.strip().split('\n'):
+                if line.strip().startswith('{'):
+                    try:
+                        raw_results.append(json.loads(line))
+                    except: continue
+
+        for data in raw_results:
+            status = data.get("status", 0)
+            if status == 404: continue
+            findings.append({
+                "status": status,
+                "length": data.get("length", 0),
+                "url": data.get("url", ""),
+                "redirect": data.get("redirectlocation", ""),
+            })
 
         if not findings:
-            return "ffuf 目录扫描完成，未发现高价值路径（已过滤 404）。"
+            return "ffuf 扫描完成，在自动校准(-ac)模式下未发现显著路径。"
 
-        # 按状态码分组统计
+        # 去重：同一 URL 只保留一个结果
+        unique_findings = {}
+        for f in findings:
+            unique_findings[f["url"]] = f
+        findings = list(unique_findings.values())
+
+        # 按状态码排序，并只取前 20 个最有价值的结果
+        findings.sort(key=lambda x: (x["status"] == 200, -x["length"]), reverse=True)
+        display_findings = findings[:20]
+
+        # 统计
         stats = {}
         for f in findings:
             s = f["status"]
@@ -53,28 +63,20 @@ def ffuf_directory_parser(raw_output: str) -> str:
         table = "| 状态码 | 路径 | 长度 | 重定向 |\n"
         table += "| :--- | :--- | :--- | :--- |\n"
 
-        for f in sorted(findings, key=lambda x: x["status"]):
+        for f in display_findings:
             url = f["url"]
-            # 提取路径部分（去掉域名前缀）
             for prefix in ["http://", "https://"]:
                 if url.startswith(prefix):
                     parts = url[len(prefix):].split('/', 1)
                     url = '/' + parts[1] if len(parts) > 1 else '/'
                     break
-
-            redirect = f.get("redirect", "")
-            redirect_short = redirect[:40] + "..." if len(redirect) > 40 else redirect
-
-            table += f"| {f['status']} | `{url}` | {f['length']}B | `{redirect_short}` |\n"
+            redirect = f.get("redirect", "") or "-"
+            table += f"| {f['status']} | `{url}` | {f['length']}B | {redirect} |\n"
 
         summary = "### ffuf 目录/路径发现摘要\n\n"
-        summary += f"共发现 {len(findings)} 个有效路径 "
-        summary += f"(状态码分布: " + ", ".join([f"{k}: {v}" for k, v in sorted(stats.items())]) + ")\n\n"
+        summary += f"共发现 {len(findings)} 个有效路径 (显示前 {len(display_findings)} 个)\n"
+        summary += f"状态码分布: " + ", ".join([f"{k}: {v}" for k, v in sorted(stats.items())]) + "\n\n"
         summary += table
-
-        if len(findings) > 50:
-            summary += f"\n*注意：共发现 {len(findings)} 个路径，已截断显示前 50 个。*"
-
         return summary
 
     except Exception as e:

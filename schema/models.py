@@ -46,7 +46,7 @@ class AgentState(TypedDict):
     discovered_hosts: Dict[str, HostInfo]
     vulnerabilities: List[Vulnerability]
     scan_history: List[ScanRecord]
-    current_phase: Literal["recon", "scanning", "analyzing", "reporting"]
+    current_phase: Literal["recon", "analysis", "verification", "reporting"]
     # 身份认证信息存储库，格式: {"192.168.1.1:80": "PHPSESSID=xxx", ...}
     sessions: Dict[str, str]
     # HITL 相关

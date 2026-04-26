@@ -20,30 +20,38 @@ from core.nodes.planner_node import planner_node
 def should_continue(state: AgentState, enable_hitl: bool = False):
     messages = state['messages']
     last_message = messages[-1]
+    phase = state.get("current_phase")
     
-    # 如果有工具调用，跳转到 tools 节点
+    # 1. 如果有工具调用，始终跳转到 tools 节点
     if hasattr(last_message, "tool_calls") and last_message.tool_calls:
-        # 如果启用了 HITL 且当前是分析阶段（涉及深入扫描工具），则进入审核
-        if enable_hitl and state.get("current_phase") == "scanning":
+        if enable_hitl and phase == "analysis":
             return "review"
         return "tools"
 
-    # 如果没有工具调用，根据当前阶段决定下一步
-    phase = state.get("current_phase")
-    if phase == "recon":
-        return "analyze"
-    elif phase == "scanning":
-        # 这是一个关键跳转：如果 Analysis 发现了漏洞，下一步去验证
-        if state.get("vulnerabilities"):
-            return "verify"
+    # 2. 阶段转换指令识别
+    content = last_message.content if last_message.content else ""
+    content_upper = content.upper()
+    
+    # 如果已经在验证阶段，且提到完成或报告，则结束
+    if phase == "verification":
+        if "[DONE]" in content_upper or "[REPORT]" in content_upper:
+            return "report"
+        # 即使它误输了 [VERIFY]，在验证阶段也应视为完成，除非有工具调用
+        if "[VERIFY]" in content_upper:
+            return END
+
+    # 从分析阶段跳转到验证
+    if "[VERIFY]" in content_upper:
+        return "verify"
+    
+    if "[REPORT]" in content_upper:
         return "report"
-    elif phase == "verifying":
-        # Verification 阶段完成后进入报告
-        return "report"
+
+    # 3. 阶段终结逻辑
     return END
 
 def create_security_graph(model_name: str = "deepseek-chat", use_checkpoint: bool = True, enable_hitl: bool = False):
-    # 初始化核心模型
+    # ... (llm 初始化部分保持不变)
     llm = ChatDeepSeek(
         model=model_name,
         api_key=Config.DEEPSEEK_API_KEY,
@@ -51,18 +59,23 @@ def create_security_graph(model_name: str = "deepseek-chat", use_checkpoint: boo
         temperature=0.1
     )
     
-    # 按角色分配工具组
+    # 按角色重新分配工具组：严禁权限重叠
     from tools.recon import host_survival_check, quick_port_scan, waf_detection
-    from tools.analysis import service_detail_scan, nuclei_scan, dir_search, sqlmap_scan
+    from tools.analysis import service_detail_scan, sqlmap_scan, nuclei_scan, dir_search, fingerprint_whatweb
     from tools.verification import web_request, sqlmap_verify, web_login_analyzer
     from tools.common import web_request as common_web_request
-    from tools.fuzzing import ffuf_dir_scan, ffuf_param_scan, ffuf_post_scan, ffuf_vhost_scan
     from tools.shiro_detect import shiro_detect
 
-    # RECON 仅允许基础网络层工具，禁止任何 HTTP/应用层工具
+    # ANALYSIS 阶段补全专项扫描工具，减少对通用 web_request 的依赖
     recon_tools = [host_survival_check, quick_port_scan, waf_detection]
-    analysis_tools = [service_detail_scan, nuclei_scan, dir_search, waf_detection, sqlmap_scan, web_login_analyzer, common_web_request, ffuf_dir_scan, ffuf_param_scan, ffuf_post_scan, ffuf_vhost_scan, shiro_detect]
-    verification_tools = [web_request, sqlmap_verify, web_login_analyzer]
+    analysis_tools = [
+        service_detail_scan, sqlmap_scan, nuclei_scan, 
+        dir_search, fingerprint_whatweb, web_login_analyzer, 
+        common_web_request, shiro_detect
+    ]
+    verification_tools = [web_request, sqlmap_verify, web_login_analyzer, nuclei_scan]
+
+
     
     # 构建节点实例
     llm_recon = llm.bind_tools(recon_tools)
@@ -86,10 +99,27 @@ def create_security_graph(model_name: str = "deepseek-chat", use_checkpoint: boo
     workflow.add_node("tools", ToolNode(ALL_TOOLS))
     workflow.add_node("observer", observer_node)
 
-    # 设置入口
-    workflow.set_entry_point("planner")
+    # 动态入口：根据 phase 决定起点
+    def route_start(state: AgentState):
+        phase = state.get("current_phase")
+        if phase == "recon": return "recon"
+        if phase == "analysis": return "analysis"
+        if phase == "verification": return "verification"
+        if phase == "reporting": return "reporting"
+        return "planner"
 
-    # 0. Planner → Recon
+    workflow.set_conditional_entry_point(
+        route_start,
+        {
+            "recon": "recon",
+            "analysis": "analysis",
+            "verification": "verification",
+            "reporting": "reporting",
+            "planner": "planner"
+        }
+    )
+
+    # 0. Planner 默认流向 (仅当从 planner 开始时)
     workflow.add_edge("planner", "recon")
 
     # 1. Recon 阶段
@@ -97,7 +127,8 @@ def create_security_graph(model_name: str = "deepseek-chat", use_checkpoint: boo
         lambda state: should_continue(state, enable_hitl), 
         {
             "tools": "tools",
-            "analyze": "analysis",
+            "verify": "analysis",
+            "report": "reporting",
             END: END
         }
     )
@@ -105,7 +136,7 @@ def create_security_graph(model_name: str = "deepseek-chat", use_checkpoint: boo
     # 2. 工具回调闭环
     workflow.add_edge("tools", "observer")
     workflow.add_conditional_edges("observer", 
-        lambda state: "recon" if state["current_phase"] == "recon" else "verification" if state["current_phase"] == "verifying" else "analysis",
+        lambda state: state["current_phase"],
         {
             "recon": "recon",
             "verification": "verification",
@@ -132,6 +163,7 @@ def create_security_graph(model_name: str = "deepseek-chat", use_checkpoint: boo
             "tools": "tools",
             "review": "human_review",
             "report": "reporting",
+            "verify": "verification",
             END: END
         }
     )

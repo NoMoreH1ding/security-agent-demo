@@ -39,11 +39,18 @@ def quick_port_scan(
     t_param = timing_map.get(speed, "-T4")
 
     try:
-        cmd = ["nmap", "-Pn", t_param, "--top-ports", str(top_n), "--open", "--max-retries", "1", target]
+        # 添加 -n 禁止反向域名解析，防止 DNS 慢速解析导致超时
+        # 添加 --open 仅显示开放端口
+        # 添加 -Pn 跳过主机发现（在 host_survival_check 已经确认的情况下更安全）
+        cmd = ["nmap", "-Pn", "-n", t_param, "--top-ports", str(top_n), "--open", "--max-retries", "2", target]
         logger.info(f"[TOOL] 执行快速端口扫描: {target}")
         logger.debug(f"[EXEC] Command: {' '.join(cmd)}")
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-        logger.debug(f"[RAW OUTPUT] {result.stdout}")
+        
+        if result.returncode != 0:
+            logger.error(f"[NMAP ERROR] {result.stderr}")
+            return f"扫描过程中发生 Nmap 错误: {result.stderr}"
+
         return parser.quick_scan_parser(result.stdout)
     except Exception as e:
         return f"扫描异常: {str(e)}"

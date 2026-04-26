@@ -46,6 +46,8 @@ def sqlmap_scan(
     except Exception as e:
         return f"SQLmap 异常: {str(e)}"
 
+_NUCLEI_HISTORY = set()
+
 @tool
 def nuclei_scan(
     target: Annotated[str, "目标URL"],
@@ -53,10 +55,16 @@ def nuclei_scan(
     cookie: Annotated[Optional[str], "Session Cookie"] = None,
 ) -> str:
     """
-    使用 Nuclei 进行高度模板化的漏洞扫描。支持携带 Cookie 绕过登录。
+    使用 Nuclei 进行高度模板化的漏洞扫描。每个目标在单次任务中仅允许执行一次。
     """
     if not target.startswith(("http://", "https://")):
         target = f"http://{target}"
+    
+    if target in _NUCLEI_HISTORY:
+        logger.warning(f"[GUARD] 拦截对 {target} 的重复 Nuclei 扫描请求")
+        return f"### Nuclei 扫描已取消\n\n该目标 ({target}) 在本次任务中已执行过 Nuclei 扫描。请查阅之前的扫描历史记录以获取漏洞详情。禁止重复扫描。"
+
+    _NUCLEI_HISTORY.add(target)
 
     cmd = ["nuclei", "-u", target, "-severity", severity, "-silent", "-jsonl"]
     if cookie:
@@ -73,6 +81,8 @@ def nuclei_scan(
     except Exception as e:
         return f"Nuclei 异常: {str(e)}"
 
+_DIRSEARCH_HISTORY = set()
+
 @tool
 def dir_search(
     target: Annotated[str, "目标 URL"],
@@ -81,15 +91,19 @@ def dir_search(
     url: Annotated[Optional[str], "目标 URL (别名)"] = None,
 ) -> str:
     """
-    使用 dirsearch 进行目录爆破。支持携带 Cookie 扫描授权页面。
-    如果 dirsearch 未安装，自动降级使用 ffuf 执行目录扫描。
-    注意：参数名 'target' 也可以接受 'url' 作为输入（兼容性）。
+    使用 dirsearch 进行目录爆破。每个目标在单次任务中仅允许执行一次。
     """
-    # 兼容性处理：如果提供了 url 参数，使用 url 作为 target
     if url:
         target = url
     if not target.startswith(("http://", "https://")):
         target = f"http://{target}"
+    
+    # 简单的饱和度拦截：严禁重复执行
+    if target in _DIRSEARCH_HISTORY:
+        logger.warning(f"[GUARD] 拦截对 {target} 的重复目录扫描请求")
+        return f"### 目录扫描已取消\n\n该目标 ({target}) 在本次任务中已执行过目录爆破，请查阅之前的扫描历史记录。严禁重复爆破。"
+    
+    _DIRSEARCH_HISTORY.add(target)
 
     cmd = ["dirsearch", "-u", target, "-e", extensions, "--format", "plain", "--random-agent", "--quiet-mode"]
     if cookie:

@@ -42,10 +42,10 @@ def summarize_messages(messages: Sequence[BaseMessage], max_tokens: int = 20000)
         elif isinstance(msg, HumanMessage) and i == 0:  # 第一条用户消息
             essential_indices.append(i)
     
-    # 第二步：识别最近3个完整对话对
+    # 第二步：识别最近 10 个完整对话对（增加记忆深度，防止循环）
     recent_pairs = []
     i = len(messages) - 1
-    while i >= 0 and len(recent_pairs) < 3:
+    while i >= 0 and len(recent_pairs) < 10:
         if isinstance(messages[i], ToolMessage):
             # 向前找配对的AIMessage
             for j in range(i-1, max(-1, i-3), -1):
